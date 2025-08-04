@@ -100,11 +100,15 @@ def inicializar_estado_sessao():
         except Exception as e:
             st.error(f"Não foi possível conectar ao broker MQTT: {e}")
 
-# --- Interface Gráfica do Streamlit ---
+st.set_page_config(page_title="Monitor BESS", layout="wide")
 
-st.set_page_config(page_title="Monitor MQTT em Tempo Real", layout="wide")
-st.title("📊 Monitor de Dados BESS em Tempo Real")
-st.markdown(f"Recebendo dados do tópico `{TOPIC}` e salvando em `{DB_NAME}`.")
+# --- Título e Subtítulo ---
+st.title("BESS - Battery Energy Storage System")
+st.markdown("""
+**Monitoramento de dados do BESS via MQTT** *Autor: Marcus Vinícius (marcus.vinicius.medeiros@ee.ufcg.edu.br)*
+""")
+st.markdown("---") # Adiciona uma linha divisória
+
 
 # Garante que a tabela exista e o estado da sessão seja inicializado
 criar_tabela()
