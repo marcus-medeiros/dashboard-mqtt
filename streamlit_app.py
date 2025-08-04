@@ -21,6 +21,7 @@ DB_NAME = "bess_dados.db"
 
 def criar_tabela():
     """Garante que a tabela para armazenar os dados exista no banco."""
+    # check_same_thread=False é necessário para o ambiente multithread do Streamlit
     with sqlite3.connect(DB_NAME, check_same_thread=False) as conn:
         cursor = conn.cursor()
         cursor.execute("""
@@ -71,10 +72,13 @@ def on_connect(client, userdata, flags, rc):
         print(f"Falha na conexão, código de retorno: {rc}\n")
 
 def on_message(client, userdata, msg):
-    """Coloca a mensagem na fila que está no st.session_state."""
+    """
+    Callback executado na thread do MQTT.
+    'userdata' é a nossa fila (queue). Coloca a mensagem diretamente na fila.
+    """
     try:
         dados = json.loads(msg.payload.decode())
-        st.session_state.data_queue.put(dados)
+        userdata.put(dados)
     except Exception as e:
         print(f"Erro ao colocar mensagem na fila: {e}")
 
@@ -85,7 +89,8 @@ def inicializar_estado_sessao():
     
     if 'mqtt_client' not in st.session_state:
         print("Criando uma nova instância do cliente MQTT e conectando...")
-        client = mqtt.Client()
+        # Passamos a fila como 'userdata' para que ela esteja disponível no on_message
+        client = mqtt.Client(userdata=st.session_state.data_queue)
         client.on_connect = on_connect
         client.on_message = on_message
         try:
