@@ -11,6 +11,7 @@ import time
 from datetime import datetime
 import queue
 import sqlite3
+import altair as alt # Importa a biblioteca Altair
 
 # --- Configurações ---
 BROKER_ADDRESS = "test.mosquitto.org"
@@ -164,13 +165,29 @@ while True:
             col1, col2 = st.columns(2)
             with col1:
                 st.markdown("##### Tensão (V)")
-                st.line_chart(chart_data.set_index('timestamp')['tensao'], use_container_width=True, color="#0072B2") # Azul
+                tensao_chart = alt.Chart(chart_data).mark_line(color="#0072B2").encode(
+                    x=alt.X('timestamp:T', title=None),
+                    y=alt.Y('tensao:Q', title="Tensão (V)", scale=alt.Scale(zero=False)),
+                    tooltip=['timestamp', 'tensao']
+                ).interactive()
+                st.altair_chart(tensao_chart, use_container_width=True)
+
             with col2:
                 st.markdown("##### Corrente (A)")
-                st.line_chart(chart_data.set_index('timestamp')['corrente'], use_container_width=True, color="#D55E00") # Laranja
+                corrente_chart = alt.Chart(chart_data).mark_line(color="#D55E00").encode(
+                    x=alt.X('timestamp:T', title=None),
+                    y=alt.Y('corrente:Q', title="Corrente (A)", scale=alt.Scale(zero=False)),
+                    tooltip=['timestamp', 'corrente']
+                ).interactive()
+                st.altair_chart(corrente_chart, use_container_width=True)
             
             st.markdown("##### Potência (kW)")
-            st.line_chart(chart_data.set_index('timestamp')['potencia'], use_container_width=True, color="#009E73") # Verde
+            potencia_chart = alt.Chart(chart_data).mark_line(color="#009E73").encode(
+                x=alt.X('timestamp:T', title=None),
+                y=alt.Y('potencia:Q', title="Potência (kW)", scale=alt.Scale(zero=False)),
+                tooltip=['timestamp', 'potencia']
+            ).interactive()
+            st.altair_chart(potencia_chart, use_container_width=True)
         
         st.subheader(f"Histórico de Leituras para: {selected_bess}")
         
