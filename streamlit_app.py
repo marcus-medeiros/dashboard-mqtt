@@ -105,22 +105,31 @@ def inicializar_estado_sessao():
 # --- Interface Gráfica do Streamlit ---
 
 st.set_page_config(page_title="BESS - Monitoramento", layout="wide")
+
+# --- Barra Lateral ---
+st.sidebar.title("Opções de Visualização")
+selected_bess = st.sidebar.selectbox(
+    "Selecione o BESS:",
+    options=['BESS001', 'BESS002']
+)
+max_points = st.sidebar.number_input(
+    "Pontos a exibir nos gráficos (janela):",
+    min_value=10, max_value=1000, value=50, step=10,
+    help="Define o número de leituras mais recentes a serem exibidas nos gráficos."
+)
+st.sidebar.markdown("---")
+if st.sidebar.button("Limpar Histórico de Dados"):
+    limpar_banco_de_dados()
+    st.sidebar.success("Histórico limpo!")
+
+# --- Página Principal ---
 st.title(":zap: BESS - Battery Energy Storage System")
-st.markdown(f"Autor: `{AUTOR}`( `{DB_NAME}`).")
+st.markdown(f"**Autor:** `{AUTOR}` | **Email:** `{EMAIL}`")
+st.markdown("---")
 
 # Garante que a tabela exista e o estado da sessão seja inicializado
 criar_tabela()
 inicializar_estado_sessao()
-
-# Adiciona a caixa de seleção para filtrar por BESS
-selected_bess = st.selectbox(
-    "Selecione o BESS para visualizar:",
-    options=['BESS001', 'BESS002'] # Opção 'Todos' removida
-)
-
-if st.button("Limpar Dados do Histórico"):
-    limpar_banco_de_dados()
-    st.toast("Histórico de dados limpo!")
 
 placeholder = st.empty()
 
@@ -145,21 +154,23 @@ while True:
 
         # Filtra o DataFrame com base na seleção do usuário
         data_to_display = all_data[all_data['id_bess'] == selected_bess]
+        chart_data = data_to_display.tail(max_points)
 
         # Verifica se há dados para exibir antes de tentar plotar
-        if not data_to_display.empty:
+        if not chart_data.empty:
             st.subheader(f"Gráficos em Tempo Real para: {selected_bess}")
             
-            col1, col2, col3 = st.columns(3)
+            # Layout dos gráficos: 2 colunas em cima, 1 em baixo
+            col1, col2 = st.columns(2)
             with col1:
                 st.markdown("##### Tensão (V)")
-                st.line_chart(data_to_display.set_index('timestamp')['tensao'], use_container_width=True)
+                st.line_chart(chart_data.set_index('timestamp')['tensao'], use_container_width=True, color="#0072B2") # Azul
             with col2:
                 st.markdown("##### Corrente (A)")
-                st.line_chart(data_to_display.set_index('timestamp')['corrente'], use_container_width=True)
-            with col3:
-                st.markdown("##### Potência (kW)")
-                st.line_chart(data_to_display.set_index('timestamp')['potencia'], use_container_width=True)
+                st.line_chart(chart_data.set_index('timestamp')['corrente'], use_container_width=True, color="#D55E00") # Laranja
+            
+            st.markdown("##### Potência (kW)")
+            st.line_chart(chart_data.set_index('timestamp')['potencia'], use_container_width=True, color="#009E73") # Verde
         
         st.subheader(f"Histórico de Leituras para: {selected_bess}")
         
