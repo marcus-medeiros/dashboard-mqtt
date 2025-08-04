@@ -16,6 +16,8 @@ import sqlite3
 BROKER_ADDRESS = "test.mosquitto.org"
 TOPIC = "bess/leituras/simulador"
 DB_NAME = "bess_dados.db"
+AUTOR = "Marcus Vinícius de Medeiros"
+EMAIL = "marcus.vinicius.medeiros@ee.ufcg.edu.br"
 
 # --- Funções do Banco de Dados (SQLite) ---
 
@@ -102,9 +104,9 @@ def inicializar_estado_sessao():
 
 # --- Interface Gráfica do Streamlit ---
 
-st.set_page_config(page_title="Monitor MQTT em Tempo Real", layout="wide")
-st.title("📊 Monitor de Dados BESS em Tempo Real")
-st.markdown(f"Recebendo dados do tópico `{TOPIC}` e salvando em `{DB_NAME}`.")
+st.set_page_config(page_title="BESS - Monitoramento", layout="wide")
+st.title(":zap: BESS - Battery Energy Storage System")
+st.markdown(f"Autor: `{AUTOR}`( `{DB_NAME}`).")
 
 # Garante que a tabela exista e o estado da sessão seja inicializado
 criar_tabela()
