@@ -80,6 +80,12 @@ if st.session_state.mqtt_client_connected:
 else:
     st.error("❌ Desconectado do broker MQTT. Verifique a conexão e o broker.")
 
+# Adiciona a caixa de seleção para filtrar por BESS
+selected_bess = st.selectbox(
+    "Selecione o BESS para visualizar:",
+    options=['Todos', 'BESS001', 'BESS002']
+)
+
 if st.button("Limpar Dados da Tabela"):
     st.session_state.data = pd.DataFrame(columns=['id_bess', 'tensao', 'corrente', 'potencia', 'timestamp'])
     st.session_state.last_message = "Aguardando a primeira mensagem..."
@@ -93,11 +99,9 @@ while True:
     while not DATA_QUEUE.empty():
         dados = DATA_QUEUE.get() # Pega a mensagem mais antiga da fila
 
-        # Agora, na thread principal, podemos atualizar o estado do Streamlit com segurança
-        timestamp_atual = datetime.now() # Pega o objeto datetime
+        timestamp_atual = datetime.now()
         dados['timestamp'] = timestamp_atual
         
-        # Formata a string para exibição
         timestamp_str = timestamp_atual.strftime("%Y-%m-%d %H:%M:%S")
         st.session_state.last_message = f"ID: {dados['id_bess']} | Tensão: {dados['tensao']}V | Corrente: {dados['corrente']}A | Potência: {dados['potencia']}kW (às {timestamp_str})"
         
@@ -108,34 +112,36 @@ while True:
     with placeholder.container():
         st.info(f"Última Mensagem: {st.session_state.last_message}")
 
-        # Verifica se há dados antes de tentar plotar os gráficos
-        if not st.session_state.data.empty:
-            st.subheader("Gráficos em Tempo Real")
+        # Filtra o DataFrame com base na seleção do usuário
+        data_to_display = st.session_state.data
+        if selected_bess != 'Todos':
+            data_to_display = st.session_state.data[st.session_state.data['id_bess'] == selected_bess]
+
+        # Verifica se há dados para exibir antes de tentar plotar
+        if not data_to_display.empty:
+            st.subheader(f"Gráficos em Tempo Real para: {selected_bess}")
             
-            # Cria 3 colunas para os gráficos
             col1, col2, col3 = st.columns(3)
 
             with col1:
                 st.markdown("##### Tensão (V)")
-                # Para o gráfico, definimos o eixo X e Y explicitamente
-                st.line_chart(st.session_state.data, x='timestamp', y='tensao', use_container_width=True)
+                st.line_chart(data_to_display, x='timestamp', y='tensao', use_container_width=True)
 
             with col2:
                 st.markdown("##### Corrente (A)")
-                st.line_chart(st.session_state.data, x='timestamp', y='corrente', use_container_width=True)
+                st.line_chart(data_to_display, x='timestamp', y='corrente', use_container_width=True)
             
             with col3:
                 st.markdown("##### Potência (kW)")
-                st.line_chart(st.session_state.data, x='timestamp', y='potencia', use_container_width=True)
-
-        st.subheader("Histórico de Leituras Recebidas")
+                st.line_chart(data_to_display, x='timestamp', y='potencia', use_container_width=True)
         
-        if not st.session_state.data.empty:
-            # Exibe o timestamp formatado na tabela
-            df_display = st.session_state.data.copy()
+        st.subheader(f"Histórico de Leituras para: {selected_bess}")
+        
+        if not data_to_display.empty:
+            df_display = data_to_display.copy()
             df_display['timestamp'] = df_display['timestamp'].dt.strftime("%Y-%m-%d %H:%M:%S")
             st.dataframe(df_display.sort_index(ascending=False), use_container_width=True)
         else:
-            st.warning("Nenhum dado recebido ainda.")
+            st.warning(f"Nenhum dado recebido ainda para {selected_bess}.")
 
     time.sleep(1)
