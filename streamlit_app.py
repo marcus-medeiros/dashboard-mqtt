@@ -100,76 +100,83 @@ def inicializar_estado_sessao():
         except Exception as e:
             st.error(f"Não foi possível conectar ao broker MQTT: {e}")
 
+# --- Interface Gráfica do Streamlit ---
+
 st.set_page_config(page_title="Monitor BESS", layout="wide")
 
-# --- Título e Subtítulo ---
+# --- Barra Lateral de Navegação ---
+st.sidebar.title("Navegação")
+page = st.sidebar.radio("Escolha uma página:", ["Monitoramento", "Configuração"])
+
+# --- Título Principal ---
 st.title("BESS - Battery Energy Storage System")
 st.markdown("""
 **Monitoramento de dados do BESS via MQTT** *Autor: Marcus Vinícius (marcus.vinicius.medeiros@ee.ufcg.edu.br)*
 """)
+st.markdown("""
+*Autor: Marcus Vinícius (marcus.vinicius.medeiros@ee.ufcg.edu.br)*
+""")
 st.markdown("---") # Adiciona uma linha divisória
-
 
 # Garante que a tabela exista e o estado da sessão seja inicializado
 criar_tabela()
 inicializar_estado_sessao()
 
-# Adiciona a caixa de seleção para filtrar por BESS
-selected_bess = st.selectbox(
-    "Selecione o BESS para visualizar:",
-    options=['BESS001', 'BESS002'] # Opção 'Todos' removida
-)
+# Processa mensagens da fila e insere no banco de dados (executa em toda atualização de página)
+while not st.session_state.data_queue.empty():
+    dados = st.session_state.data_queue.get()
+    dados['timestamp'] = datetime.now()
+    inserir_dados(dados)
 
-if st.button("Limpar Dados do Histórico"):
-    limpar_banco_de_dados()
-    st.toast("Histórico de dados limpo!")
+# --- Conteúdo da Página Selecionada ---
 
-placeholder = st.empty()
+if page == "Monitoramento":
+    selected_bess = st.selectbox(
+        "Selecione o BESS para visualizar:",
+        options=['BESS001', 'BESS002']
+    )
+    
+    placeholder = st.empty()
 
-# Loop principal da aplicação Streamlit
-while True:
-    # Processa mensagens da fila e insere no banco de dados
-    while not st.session_state.data_queue.empty():
-        dados = st.session_state.data_queue.get()
-        dados['timestamp'] = datetime.now()
-        inserir_dados(dados)
+    # Loop para atualização da página de monitoramento
+    while True:
+        all_data = carregar_dados_do_db()
+        with placeholder.container():
+            if not all_data.empty:
+                last_row = all_data.iloc[-1]
+                last_message_str = f"ID: {last_row['id_bess']} | Tensão: {last_row['tensao']}V | Corrente: {last_row['corrente']}A | Potência: {last_row['potencia']}kW (às {last_row['timestamp'].strftime('%H:%M:%S')})"
+                st.info(f"Última Leitura Salva: {last_message_str}")
+            else:
+                st.info("Aguardando a primeira mensagem...")
 
-    # Carrega os dados mais recentes do banco
-    all_data = carregar_dados_do_db()
+            data_to_display = all_data[all_data['id_bess'] == selected_bess]
 
-    with placeholder.container():
-        if not all_data.empty:
-            last_row = all_data.iloc[-1]
-            last_message_str = f"ID: {last_row['id_bess']} | Tensão: {last_row['tensao']}V | Corrente: {last_row['corrente']}A | Potência: {last_row['potencia']}kW (às {last_row['timestamp'].strftime('%H:%M:%S')})"
-            st.info(f"Última Leitura Salva: {last_message_str}")
-        else:
-            st.info("Aguardando a primeira mensagem...")
-
-        # Filtra o DataFrame com base na seleção do usuário
-        data_to_display = all_data[all_data['id_bess'] == selected_bess]
-
-        # Verifica se há dados para exibir antes de tentar plotar
-        if not data_to_display.empty:
-            st.subheader(f"Gráficos em Tempo Real para: {selected_bess}")
+            if not data_to_display.empty:
+                st.subheader(f"Gráficos em Tempo Real para: {selected_bess}")
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.markdown("##### Tensão (V)")
+                    st.line_chart(data_to_display.set_index('timestamp')['tensao'], use_container_width=True)
+                with col2:
+                    st.markdown("##### Corrente (A)")
+                    st.line_chart(data_to_display.set_index('timestamp')['corrente'], use_container_width=True)
+                with col3:
+                    st.markdown("##### Potência (kW)")
+                    st.line_chart(data_to_display.set_index('timestamp')['potencia'], use_container_width=True)
             
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                st.markdown("##### Tensão (V)")
-                st.line_chart(data_to_display.set_index('timestamp')['tensao'], use_container_width=True)
-            with col2:
-                st.markdown("##### Corrente (A)")
-                st.line_chart(data_to_display.set_index('timestamp')['corrente'], use_container_width=True)
-            with col3:
-                st.markdown("##### Potência (kW)")
-                st.line_chart(data_to_display.set_index('timestamp')['potencia'], use_container_width=True)
-        
-        st.subheader(f"Histórico de Leituras para: {selected_bess}")
-        
-        if not data_to_display.empty:
-            df_display = data_to_display.copy()
-            df_display['timestamp'] = df_display['timestamp'].dt.strftime("%Y-%m-%d %H:%M:%S")
-            st.dataframe(df_display.sort_index(ascending=False), use_container_width=True)
-        else:
-            st.warning(f"Nenhum dado recebido ainda para {selected_bess}.")
+            st.subheader(f"Histórico de Leituras para: {selected_bess}")
+            if not data_to_display.empty:
+                df_display = data_to_display.copy()
+                df_display['timestamp'] = df_display['timestamp'].dt.strftime("%Y-%m-%d %H:%M:%S")
+                st.dataframe(df_display.sort_index(ascending=False), use_container_width=True)
+            else:
+                st.warning(f"Nenhum dado recebido ainda para {selected_bess}.")
+        time.sleep(1)
 
-    time.sleep(1)
+elif page == "Configuração":
+    st.subheader("Gerenciamento do Banco de Dados")
+    st.warning("Atenção: Esta ação é irreversível e apagará todo o histórico de leituras.")
+    if st.button("Limpar Dados do Histórico"):
+        limpar_banco_de_dados()
+        st.success("Histórico de dados limpo com sucesso!")
+
