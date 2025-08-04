@@ -113,9 +113,6 @@ st.title("BESS - Battery Energy Storage System")
 st.markdown("""
 **Monitoramento de dados do BESS via MQTT** *Autor: Marcus Vinícius (marcus.vinicius.medeiros@ee.ufcg.edu.br)*
 """)
-st.markdown("""
-*Autor: Marcus Vinícius (marcus.vinicius.medeiros@ee.ufcg.edu.br)*
-""")
 st.markdown("---") # Adiciona uma linha divisória
 
 # Garante que a tabela exista e o estado da sessão seja inicializado
@@ -153,16 +150,18 @@ if page == "Monitoramento":
 
             if not data_to_display.empty:
                 st.subheader(f"Gráficos em Tempo Real para: {selected_bess}")
-                col1, col2, col3 = st.columns(3)
+                
+                # --- Novo Layout dos Gráficos ---
+                col1, col2 = st.columns(2)
                 with col1:
                     st.markdown("##### Tensão (V)")
                     st.line_chart(data_to_display.set_index('timestamp')['tensao'], use_container_width=True)
                 with col2:
                     st.markdown("##### Corrente (A)")
                     st.line_chart(data_to_display.set_index('timestamp')['corrente'], use_container_width=True)
-                with col3:
-                    st.markdown("##### Potência (kW)")
-                    st.line_chart(data_to_display.set_index('timestamp')['potencia'], use_container_width=True)
+                
+                st.markdown("##### Potência (kW)")
+                st.line_chart(data_to_display.set_index('timestamp')['potencia'], use_container_width=True)
             
             st.subheader(f"Histórico de Leituras para: {selected_bess}")
             if not data_to_display.empty:
@@ -179,4 +178,3 @@ elif page == "Configuração":
     if st.button("Limpar Dados do Histórico"):
         limpar_banco_de_dados()
         st.success("Histórico de dados limpo com sucesso!")
-
