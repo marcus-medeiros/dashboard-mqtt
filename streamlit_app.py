@@ -51,14 +51,19 @@ def on_message(client, userdata, msg):
         print(f"Erro ao colocar mensagem na fila: {e}")
 
 def conectar_mqtt():
-    """Cria e gerencia a conexão do cliente MQTT."""
-    if 'mqtt_client_connected' not in st.session_state:
+    """
+    Cria e gerencia a conexão do cliente MQTT, garantindo que seja criada apenas uma vez.
+    O cliente MQTT é armazenado no st.session_state para persistir entre as execuções do script.
+    """
+    if 'mqtt_client' not in st.session_state:
+        print("Criando uma nova instância do cliente MQTT e conectando...")
         client = mqtt.Client()
         client.on_connect = on_connect
         client.on_message = on_message
         try:
             client.connect(BROKER_ADDRESS, 1883, 60)
             client.loop_start()
+            st.session_state.mqtt_client = client # Armazena a instância do cliente
             st.session_state.mqtt_client_connected = True
             print("Cliente MQTT conectado e loop iniciado.")
         except Exception as e:
@@ -74,11 +79,6 @@ st.markdown(f"Recebendo dados do tópico `{TOPIC}`.")
 # Inicializa os dados e a conexão na primeira execução
 inicializar_dados()
 conectar_mqtt()
-
-if st.session_state.mqtt_client_connected:
-    st.success("✅ Conectado ao broker MQTT e recebendo dados.")
-else:
-    st.error("❌ Desconectado do broker MQTT. Verifique a conexão e o broker.")
 
 # Adiciona a caixa de seleção para filtrar por BESS
 selected_bess = st.selectbox(
