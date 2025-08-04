@@ -135,7 +135,7 @@ if st.sidebar.button("Limpar Histórico de Dados"):
 
 # --- Página Principal ---
 
-st.image("Logo-MVM.png", width=300)
+st.image("Logo-MVM.png", width=100)
 st.title(":zap: BESS - Battery Energy Storage System")
 st.markdown(f"**Autor:** `{AUTOR}` | **Email:** `{EMAIL}`")
 st.markdown("---")
