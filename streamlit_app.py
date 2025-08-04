@@ -17,14 +17,11 @@ BROKER_ADDRESS = "test.mosquitto.org"
 TOPIC = "bess/leituras/simulador"
 DB_NAME = "bess_dados.db"
 
-# --- Fila para comunicação entre a thread MQTT e a thread principal do Streamlit ---
-DATA_QUEUE = queue.Queue()
-
 # --- Funções do Banco de Dados (SQLite) ---
 
 def criar_tabela():
     """Garante que a tabela para armazenar os dados exista no banco."""
-    with sqlite3.connect(DB_NAME) as conn:
+    with sqlite3.connect(DB_NAME, check_same_thread=False) as conn:
         cursor = conn.cursor()
         cursor.execute("""
         CREATE TABLE IF NOT EXISTS medicoes (
@@ -41,7 +38,7 @@ def criar_tabela():
 
 def inserir_dados(dados):
     """Insere uma nova leitura no banco de dados."""
-    with sqlite3.connect(DB_NAME) as conn:
+    with sqlite3.connect(DB_NAME, check_same_thread=False) as conn:
         cursor = conn.cursor()
         cursor.execute("""
             INSERT INTO medicoes (id_bess, tensao, corrente, potencia, timestamp)
@@ -51,14 +48,13 @@ def inserir_dados(dados):
 
 def carregar_dados_do_db():
     """Carrega todos os dados da tabela 'medicoes' para um DataFrame."""
-    with sqlite3.connect(DB_NAME) as conn:
-        # O parse_dates garante que a coluna timestamp seja lida como data/hora
+    with sqlite3.connect(DB_NAME, check_same_thread=False) as conn:
         df = pd.read_sql_query("SELECT * FROM medicoes", conn, parse_dates=['timestamp'])
         return df
 
 def limpar_banco_de_dados():
     """Apaga todos os registros da tabela medicoes."""
-    with sqlite3.connect(DB_NAME) as conn:
+    with sqlite3.connect(DB_NAME, check_same_thread=False) as conn:
         cursor = conn.cursor()
         cursor.execute("DELETE FROM medicoes")
         conn.commit()
@@ -75,15 +71,18 @@ def on_connect(client, userdata, flags, rc):
         print(f"Falha na conexão, código de retorno: {rc}\n")
 
 def on_message(client, userdata, msg):
-    """Coloca a mensagem recebida na fila para ser processada pela thread principal."""
+    """Coloca a mensagem na fila que está no st.session_state."""
     try:
         dados = json.loads(msg.payload.decode())
-        DATA_QUEUE.put(dados)
+        st.session_state.data_queue.put(dados)
     except Exception as e:
         print(f"Erro ao colocar mensagem na fila: {e}")
 
-def conectar_mqtt():
-    """Cria e gerencia a conexão do cliente MQTT, garantindo que seja criada apenas uma vez."""
+def inicializar_estado_sessao():
+    """Inicializa tudo que precisa persistir no st.session_state."""
+    if 'data_queue' not in st.session_state:
+        st.session_state.data_queue = queue.Queue()
+    
     if 'mqtt_client' not in st.session_state:
         print("Criando uma nova instância do cliente MQTT e conectando...")
         client = mqtt.Client()
@@ -102,14 +101,14 @@ st.set_page_config(page_title="Monitor MQTT em Tempo Real", layout="wide")
 st.title("📊 Monitor de Dados BESS em Tempo Real")
 st.markdown(f"Recebendo dados do tópico `{TOPIC}` e salvando em `{DB_NAME}`.")
 
-# Garante que a tabela exista e conecta ao MQTT na primeira execução
+# Garante que a tabela exista e o estado da sessão seja inicializado
 criar_tabela()
-conectar_mqtt()
+inicializar_estado_sessao()
 
 # Adiciona a caixa de seleção para filtrar por BESS
 selected_bess = st.selectbox(
     "Selecione o BESS para visualizar:",
-    options=['Todos', 'BESS001', 'BESS002']
+    options=['BESS001', 'BESS002'] # Opção 'Todos' removida
 )
 
 if st.button("Limpar Dados do Histórico"):
@@ -121,8 +120,8 @@ placeholder = st.empty()
 # Loop principal da aplicação Streamlit
 while True:
     # Processa mensagens da fila e insere no banco de dados
-    while not DATA_QUEUE.empty():
-        dados = DATA_QUEUE.get()
+    while not st.session_state.data_queue.empty():
+        dados = st.session_state.data_queue.get()
         dados['timestamp'] = datetime.now()
         inserir_dados(dados)
 
@@ -138,9 +137,7 @@ while True:
             st.info("Aguardando a primeira mensagem...")
 
         # Filtra o DataFrame com base na seleção do usuário
-        data_to_display = all_data
-        if selected_bess != 'Todos':
-            data_to_display = all_data[all_data['id_bess'] == selected_bess]
+        data_to_display = all_data[all_data['id_bess'] == selected_bess]
 
         # Verifica se há dados para exibir antes de tentar plotar
         if not data_to_display.empty:
