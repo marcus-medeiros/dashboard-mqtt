@@ -133,10 +133,6 @@ if st.sidebar.button("Limpar Histórico de Dados"):
     else:
         st.error("Senha incorreta. Ação não permitida.")
 
-if st.sidebar.button("Limpar Histórico de Dados"):
-    limpar_banco_de_dados()
-    st.sidebar.success("Histórico limpo!")
-
 # --- Página Principal ---
 st.title(":zap: BESS - Battery Energy Storage System")
 st.markdown(f"**Autor:** `{AUTOR}` | **Email:** `{EMAIL}`")
