@@ -1,151 +1,110 @@
+# -*- coding: utf-8 -*-
+# SCRIPT 3: DASHBOARD STREAMLIT (VISUALIZADOR)
+# Este script cria uma aplicação web com Streamlit para visualizar
+# em tempo real os dados recebidos via MQTT.
+
 import streamlit as st
 import pandas as pd
-import math
-from pathlib import Path
+import paho.mqtt.client as mqtt
+import json
+import time
+from datetime import datetime
 
-# Set the title and favicon that appear in the Browser's tab bar.
-st.set_page_config(
-    page_title='GDP dashboard',
-    page_icon=':earth_americas:', # This is an emoji shortcode. Could be a URL too.
-)
+# --- Configurações ---
+# Devem ser as mesmas do script publicador
+BROKER_ADDRESS = "broker.hivemq.com"
+TOPIC = "bess/leituras/simulador"
 
-# -----------------------------------------------------------------------------
-# Declare some useful functions.
+# Função para inicializar o DataFrame no estado da sessão do Streamlit.
+# Isso garante que nossos dados não sejam perdidos a cada interação do usuário.
+def inicializar_dados():
+    if 'data' not in st.session_state:
+        st.session_state.data = pd.DataFrame(columns=['id_bess', 'tensao', 'corrente', 'potencia', 'timestamp'])
 
-@st.cache_data
-def get_gdp_data():
-    """Grab GDP data from a CSV file.
+# --- Funções do Cliente MQTT ---
 
-    This uses caching to avoid having to read the file every time. If we were
-    reading from an HTTP endpoint instead of a file, it's a good idea to set
-    a maximum age to the cache with the TTL argument: @st.cache_data(ttl='1d')
+def on_connect(client, userdata, flags, rc):
+    """Callback executado quando o cliente se conecta ao broker."""
+    if rc == 0:
+        print("Conectado ao Broker MQTT!")
+        client.subscribe(TOPIC)
+        print(f"Escutando o tópico: {TOPIC}")
+    else:
+        print(f"Falha na conexão, código de retorno: {rc}\n")
+
+def on_message(client, userdata, msg):
     """
+    Callback executado quando uma mensagem é recebida.
+    Esta função atualiza o DataFrame no estado da sessão.
+    """
+    try:
+        dados = json.loads(msg.payload.decode())
+        print(f"Mensagem recebida: {dados}")
+        
+        # Adiciona o timestamp exato do momento do recebimento
+        dados['timestamp'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-    # Instead of a CSV on disk, you could read from an HTTP endpoint here too.
-    DATA_FILENAME = Path(__file__).parent/'data/gdp_data.csv'
-    raw_gdp_df = pd.read_csv(DATA_FILENAME)
+        # Cria um DataFrame de uma única linha com os novos dados
+        nova_linha = pd.DataFrame([dados])
 
-    MIN_YEAR = 1960
-    MAX_YEAR = 2022
+        # Concatena a nova linha ao DataFrame existente no estado da sessão
+        st.session_state.data = pd.concat([st.session_state.data, nova_linha], ignore_index=True)
 
-    # The data above has columns like:
-    # - Country Name
-    # - Country Code
-    # - [Stuff I don't care about]
-    # - GDP for 1960
-    # - GDP for 1961
-    # - GDP for 1962
-    # - ...
-    # - GDP for 2022
-    #
-    # ...but I want this instead:
-    # - Country Name
-    # - Country Code
-    # - Year
-    # - GDP
-    #
-    # So let's pivot all those year-columns into two: Year and GDP
-    gdp_df = raw_gdp_df.melt(
-        ['Country Code'],
-        [str(x) for x in range(MIN_YEAR, MAX_YEAR + 1)],
-        'Year',
-        'GDP',
-    )
+    except Exception as e:
+        print(f"Erro ao processar mensagem: {e}")
 
-    # Convert years from string to integers
-    gdp_df['Year'] = pd.to_numeric(gdp_df['Year'])
+def conectar_mqtt():
+    """
+    Cria e gerencia a conexão do cliente MQTT usando o estado da sessão
+    para evitar reconexões a cada atualização da página.
+    """
+    if 'mqtt_client_connected' not in st.session_state:
+        st.session_state.mqtt_client_connected = False
 
-    return gdp_df
+    if not st.session_state.mqtt_client_connected:
+        client = mqtt.Client()
+        client.on_connect = on_connect
+        client.on_message = on_message
+        try:
+            client.connect(BROKER_ADDRESS, 1883, 60)
+            client.loop_start() # Inicia o loop em uma thread separada
+            st.session_state.mqtt_client_connected = True
+            print("Cliente MQTT conectado e loop iniciado.")
+        except Exception as e:
+            st.error(f"Não foi possível conectar ao broker MQTT: {e}")
+            st.session_state.mqtt_client_connected = False
 
-gdp_df = get_gdp_data()
+# --- Interface Gráfica do Streamlit ---
 
-# -----------------------------------------------------------------------------
-# Draw the actual page
+st.set_page_config(page_title="Monitor MQTT em Tempo Real", layout="wide")
 
-# Set the title that appears at the top of the page.
-'''
-# :earth_americas: GDP dashboard
+st.title("📊 Monitor de Dados BESS em Tempo Real")
+st.markdown(f"Recebendo dados do tópico `{TOPIC}`.")
 
-Browse GDP data from the [World Bank Open Data](https://data.worldbank.org/) website. As you'll
-notice, the data only goes to 2022 right now, and datapoints for certain years are often missing.
-But it's otherwise a great (and did I mention _free_?) source of data.
-'''
+# Inicializa os dados e a conexão MQTT na primeira execução
+inicializar_dados()
+conectar_mqtt()
 
-# Add some spacing
-''
-''
+if st.session_state.mqtt_client_connected:
+    st.success("✅ Conectado ao broker MQTT e recebendo dados.")
+else:
+    st.error("❌ Desconectado do broker MQTT. Verifique a conexão e o broker.")
 
-min_value = gdp_df['Year'].min()
-max_value = gdp_df['Year'].max()
+# Botão para limpar os dados da tabela
+if st.button("Limpar Dados da Tabela"):
+    st.session_state.data = pd.DataFrame(columns=['id_bess', 'tensao', 'corrente', 'potencia', 'timestamp'])
+    st.toast("Tabela de dados limpa!")
 
-from_year, to_year = st.slider(
-    'Which years are you interested in?',
-    min_value=min_value,
-    max_value=max_value,
-    value=[min_value, max_value])
+# Placeholder para a tabela, que será atualizada continuamente
+placeholder = st.empty()
 
-countries = gdp_df['Country Code'].unique()
+# Loop para atualizar a interface a cada segundo
+while True:
+    with placeholder.container():
+        st.subheader("Últimas Leituras Recebidas")
+        
+        # Exibe a tabela de dados, mostrando as mais recentes primeiro
+        # A propriedade `use_container_width` faz a tabela ocupar todo o espaço disponível
+        st.dataframe(st.session_state.data.sort_index(ascending=False), use_container_width=True)
 
-if not len(countries):
-    st.warning("Select at least one country")
-
-selected_countries = st.multiselect(
-    'Which countries would you like to view?',
-    countries,
-    ['DEU', 'FRA', 'GBR', 'BRA', 'MEX', 'JPN'])
-
-''
-''
-''
-
-# Filter the data
-filtered_gdp_df = gdp_df[
-    (gdp_df['Country Code'].isin(selected_countries))
-    & (gdp_df['Year'] <= to_year)
-    & (from_year <= gdp_df['Year'])
-]
-
-st.header('GDP over time', divider='gray')
-
-''
-
-st.line_chart(
-    filtered_gdp_df,
-    x='Year',
-    y='GDP',
-    color='Country Code',
-)
-
-''
-''
-
-
-first_year = gdp_df[gdp_df['Year'] == from_year]
-last_year = gdp_df[gdp_df['Year'] == to_year]
-
-st.header(f'GDP in {to_year}', divider='gray')
-
-''
-
-cols = st.columns(4)
-
-for i, country in enumerate(selected_countries):
-    col = cols[i % len(cols)]
-
-    with col:
-        first_gdp = first_year[first_year['Country Code'] == country]['GDP'].iat[0] / 1000000000
-        last_gdp = last_year[last_year['Country Code'] == country]['GDP'].iat[0] / 1000000000
-
-        if math.isnan(first_gdp):
-            growth = 'n/a'
-            delta_color = 'off'
-        else:
-            growth = f'{last_gdp / first_gdp:,.2f}x'
-            delta_color = 'normal'
-
-        st.metric(
-            label=f'{country} GDP',
-            value=f'{last_gdp:,.0f}B',
-            delta=growth,
-            delta_color=delta_color
-        )
+    time.sleep(1) # Pausa para não sobrecarregar o navegador
