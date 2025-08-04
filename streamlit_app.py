@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 # SCRIPT 3: DASHBOARD STREAMLIT (VISUALIZADOR)
-# Este script cria uma aplicação web com Streamlit para visualizar
-# em tempo real os dados recebidos via MQTT.
+# Este script recebe dados via MQTT, salva em um banco de dados SQLite,
+# e visualiza os dados do banco em tempo real.
 
 import streamlit as st
 import pandas as pd
@@ -9,52 +9,81 @@ import paho.mqtt.client as mqtt
 import json
 import time
 from datetime import datetime
-import queue # Importa a biblioteca de fila thread-safe
+import queue
+import sqlite3
 
 # --- Configurações ---
 BROKER_ADDRESS = "test.mosquitto.org"
 TOPIC = "bess/leituras/simulador"
+DB_NAME = "bess_dados.db"
 
 # --- Fila para comunicação entre a thread MQTT e a thread principal do Streamlit ---
-# Esta fila é segura para ser usada por múltiplas threads.
 DATA_QUEUE = queue.Queue()
 
-# --- Funções de Inicialização e MQTT ---
+# --- Funções do Banco de Dados (SQLite) ---
 
-def inicializar_dados():
-    """Inicializa o DataFrame e a última mensagem no estado da sessão."""
-    if 'data' not in st.session_state:
-        st.session_state.data = pd.DataFrame(columns=['id_bess', 'tensao', 'corrente', 'potencia', 'timestamp'])
-    if 'last_message' not in st.session_state:
-        st.session_state.last_message = "Aguardando a primeira mensagem..."
+def criar_tabela():
+    """Garante que a tabela para armazenar os dados exista no banco."""
+    with sqlite3.connect(DB_NAME) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS medicoes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id_bess TEXT NOT NULL,
+            tensao REAL,
+            corrente REAL,
+            potencia REAL,
+            timestamp DATETIME NOT NULL
+        )
+        """)
+        conn.commit()
+        print("Tabela 'medicoes' verificada/criada com sucesso.")
+
+def inserir_dados(dados):
+    """Insere uma nova leitura no banco de dados."""
+    with sqlite3.connect(DB_NAME) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO medicoes (id_bess, tensao, corrente, potencia, timestamp)
+            VALUES (?, ?, ?, ?, ?)
+        """, (dados['id_bess'], dados['tensao'], dados['corrente'], dados['potencia'], dados['timestamp']))
+        conn.commit()
+
+def carregar_dados_do_db():
+    """Carrega todos os dados da tabela 'medicoes' para um DataFrame."""
+    with sqlite3.connect(DB_NAME) as conn:
+        # O parse_dates garante que a coluna timestamp seja lida como data/hora
+        df = pd.read_sql_query("SELECT * FROM medicoes", conn, parse_dates=['timestamp'])
+        return df
+
+def limpar_banco_de_dados():
+    """Apaga todos os registros da tabela medicoes."""
+    with sqlite3.connect(DB_NAME) as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM medicoes")
+        conn.commit()
+        print("Banco de dados limpo.")
+
+# --- Funções de Inicialização e MQTT ---
 
 def on_connect(client, userdata, flags, rc):
     """Callback executado quando o cliente se conecta ao broker."""
     if rc == 0:
         print("Conectado ao Broker MQTT!")
         client.subscribe(TOPIC)
-        print(f"Escutando o tópico: {TOPIC}")
     else:
         print(f"Falha na conexão, código de retorno: {rc}\n")
 
 def on_message(client, userdata, msg):
-    """
-    Callback executado na thread do MQTT.
-    NÃO PODE ter código do Streamlit aqui.
-    Apenas coloca a mensagem recebida na fila.
-    """
+    """Coloca a mensagem recebida na fila para ser processada pela thread principal."""
     try:
         dados = json.loads(msg.payload.decode())
-        print(f"Mensagem colocada na fila: {dados}")
-        DATA_QUEUE.put(dados) # Coloca o dicionário de dados na fila
+        DATA_QUEUE.put(dados)
     except Exception as e:
         print(f"Erro ao colocar mensagem na fila: {e}")
 
 def conectar_mqtt():
-    """
-    Cria e gerencia a conexão do cliente MQTT, garantindo que seja criada apenas uma vez.
-    O cliente MQTT é armazenado no st.session_state para persistir entre as execuções do script.
-    """
+    """Cria e gerencia a conexão do cliente MQTT, garantindo que seja criada apenas uma vez."""
     if 'mqtt_client' not in st.session_state:
         print("Criando uma nova instância do cliente MQTT e conectando...")
         client = mqtt.Client()
@@ -63,21 +92,18 @@ def conectar_mqtt():
         try:
             client.connect(BROKER_ADDRESS, 1883, 60)
             client.loop_start()
-            st.session_state.mqtt_client = client # Armazena a instância do cliente
-            st.session_state.mqtt_client_connected = True
-            print("Cliente MQTT conectado e loop iniciado.")
+            st.session_state.mqtt_client = client
         except Exception as e:
             st.error(f"Não foi possível conectar ao broker MQTT: {e}")
-            st.session_state.mqtt_client_connected = False
 
-# --- Interface Gráfica do Streamlit (Executada na Thread Principal) ---
+# --- Interface Gráfica do Streamlit ---
 
 st.set_page_config(page_title="Monitor MQTT em Tempo Real", layout="wide")
 st.title("📊 Monitor de Dados BESS em Tempo Real")
-st.markdown(f"Recebendo dados do tópico `{TOPIC}`.")
+st.markdown(f"Recebendo dados do tópico `{TOPIC}` e salvando em `{DB_NAME}`.")
 
-# Inicializa os dados e a conexão na primeira execução
-inicializar_dados()
+# Garante que a tabela exista e conecta ao MQTT na primeira execução
+criar_tabela()
 conectar_mqtt()
 
 # Adiciona a caixa de seleção para filtrar por BESS
@@ -86,54 +112,50 @@ selected_bess = st.selectbox(
     options=['Todos', 'BESS001', 'BESS002']
 )
 
-if st.button("Limpar Dados da Tabela"):
-    st.session_state.data = pd.DataFrame(columns=['id_bess', 'tensao', 'corrente', 'potencia', 'timestamp'])
-    st.session_state.last_message = "Aguardando a primeira mensagem..."
-    st.toast("Tabela de dados limpa!")
+if st.button("Limpar Dados do Histórico"):
+    limpar_banco_de_dados()
+    st.toast("Histórico de dados limpo!")
 
 placeholder = st.empty()
 
 # Loop principal da aplicação Streamlit
 while True:
-    # Processa todas as mensagens que estiverem na fila
+    # Processa mensagens da fila e insere no banco de dados
     while not DATA_QUEUE.empty():
-        dados = DATA_QUEUE.get() # Pega a mensagem mais antiga da fila
+        dados = DATA_QUEUE.get()
+        dados['timestamp'] = datetime.now()
+        inserir_dados(dados)
 
-        timestamp_atual = datetime.now()
-        dados['timestamp'] = timestamp_atual
-        
-        timestamp_str = timestamp_atual.strftime("%Y-%m-%d %H:%M:%S")
-        st.session_state.last_message = f"ID: {dados['id_bess']} | Tensão: {dados['tensao']}V | Corrente: {dados['corrente']}A | Potência: {dados['potencia']}kW (às {timestamp_str})"
-        
-        nova_linha = pd.DataFrame([dados])
-        st.session_state.data = pd.concat([st.session_state.data, nova_linha], ignore_index=True)
+    # Carrega os dados mais recentes do banco
+    all_data = carregar_dados_do_db()
 
-    # Redesenha a interface com os dados atualizados
     with placeholder.container():
-        st.info(f"Última Mensagem: {st.session_state.last_message}")
+        if not all_data.empty:
+            last_row = all_data.iloc[-1]
+            last_message_str = f"ID: {last_row['id_bess']} | Tensão: {last_row['tensao']}V | Corrente: {last_row['corrente']}A | Potência: {last_row['potencia']}kW (às {last_row['timestamp'].strftime('%H:%M:%S')})"
+            st.info(f"Última Leitura Salva: {last_message_str}")
+        else:
+            st.info("Aguardando a primeira mensagem...")
 
         # Filtra o DataFrame com base na seleção do usuário
-        data_to_display = st.session_state.data
+        data_to_display = all_data
         if selected_bess != 'Todos':
-            data_to_display = st.session_state.data[st.session_state.data['id_bess'] == selected_bess]
+            data_to_display = all_data[all_data['id_bess'] == selected_bess]
 
         # Verifica se há dados para exibir antes de tentar plotar
         if not data_to_display.empty:
             st.subheader(f"Gráficos em Tempo Real para: {selected_bess}")
             
             col1, col2, col3 = st.columns(3)
-
             with col1:
                 st.markdown("##### Tensão (V)")
-                st.line_chart(data_to_display, x='timestamp', y='tensao', use_container_width=True)
-
+                st.line_chart(data_to_display.set_index('timestamp')['tensao'], use_container_width=True)
             with col2:
                 st.markdown("##### Corrente (A)")
-                st.line_chart(data_to_display, x='timestamp', y='corrente', use_container_width=True)
-            
+                st.line_chart(data_to_display.set_index('timestamp')['corrente'], use_container_width=True)
             with col3:
                 st.markdown("##### Potência (kW)")
-                st.line_chart(data_to_display, x='timestamp', y='potencia', use_container_width=True)
+                st.line_chart(data_to_display.set_index('timestamp')['potencia'], use_container_width=True)
         
         st.subheader(f"Histórico de Leituras para: {selected_bess}")
         
