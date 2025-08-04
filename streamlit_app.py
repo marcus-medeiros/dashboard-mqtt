@@ -15,11 +15,13 @@ from datetime import datetime
 BROKER_ADDRESS = "broker.hivemq.com"
 TOPIC = "bess/leituras/simulador"
 
-# Função para inicializar o DataFrame no estado da sessão do Streamlit.
-# Isso garante que nossos dados não sejam perdidos a cada interação do usuário.
+# Função para inicializar o DataFrame e a última mensagem no estado da sessão.
 def inicializar_dados():
     if 'data' not in st.session_state:
         st.session_state.data = pd.DataFrame(columns=['id_bess', 'tensao', 'corrente', 'potencia', 'timestamp'])
+    # Inicializa o estado da última mensagem
+    if 'last_message' not in st.session_state:
+        st.session_state.last_message = "Aguardando a primeira mensagem..."
 
 # --- Funções do Cliente MQTT ---
 
@@ -35,14 +37,18 @@ def on_connect(client, userdata, flags, rc):
 def on_message(client, userdata, msg):
     """
     Callback executado quando uma mensagem é recebida.
-    Esta função atualiza o DataFrame no estado da sessão.
+    Esta função atualiza o DataFrame e a última mensagem no estado da sessão.
     """
     try:
         dados = json.loads(msg.payload.decode())
         print(f"Mensagem recebida: {dados}")
         
         # Adiciona o timestamp exato do momento do recebimento
-        dados['timestamp'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        timestamp_atual = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        dados['timestamp'] = timestamp_atual
+
+        # Atualiza o estado da última mensagem para exibição
+        st.session_state.last_message = f"ID: {dados['id_bess']} | Tensão: {dados['tensao']}V | Corrente: {dados['corrente']}A | Potência: {dados['potencia']}kW (às {timestamp_atual})"
 
         # Cria um DataFrame de uma única linha com os novos dados
         nova_linha = pd.DataFrame([dados])
@@ -93,18 +99,24 @@ else:
 # Botão para limpar os dados da tabela
 if st.button("Limpar Dados da Tabela"):
     st.session_state.data = pd.DataFrame(columns=['id_bess', 'tensao', 'corrente', 'potencia', 'timestamp'])
+    st.session_state.last_message = "Aguardando a primeira mensagem..."
     st.toast("Tabela de dados limpa!")
 
-# Placeholder para a tabela, que será atualizada continuamente
+# Placeholder para o conteúdo dinâmico
 placeholder = st.empty()
 
 # Loop para atualizar a interface a cada segundo
 while True:
     with placeholder.container():
-        st.subheader("Últimas Leituras Recebidas")
+        # Exibe a última mensagem recebida
+        st.info(f"Última Mensagem: {st.session_state.last_message}")
+
+        st.subheader("Histórico de Leituras Recebidas")
         
         # Exibe a tabela de dados, mostrando as mais recentes primeiro
-        # A propriedade `use_container_width` faz a tabela ocupar todo o espaço disponível
-        st.dataframe(st.session_state.data.sort_index(ascending=False), use_container_width=True)
+        if not st.session_state.data.empty:
+            st.dataframe(st.session_state.data.sort_index(ascending=False), use_container_width=True)
+        else:
+            st.warning("Nenhum dado recebido ainda.")
 
     time.sleep(1) # Pausa para não sobrecarregar o navegador
