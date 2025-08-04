@@ -19,6 +19,7 @@ TOPIC = "bess/leituras/simulador"
 DB_NAME = "bess_dados.db"
 AUTOR = "Marcus Vinícius de Medeiros"
 EMAIL = "marcus.vinicius.medeiros@ee.ufcg.edu.br"
+SENHA_ADMIN = "debora"
 
 # --- Funções do Banco de Dados (SQLite) ---
 
@@ -119,6 +120,19 @@ max_points = st.sidebar.number_input(
     help="Define o número de leituras mais recentes a serem exibidas nos gráficos."
 )
 st.sidebar.markdown("---")
+st.sidebar.markdown("---")
+
+password = st.sidebar.text_input("Digite a senha de administrador para confirmar:", type="password")
+    
+if st.sidebar.button("Limpar Histórico de Dados"):
+    if password == SENHA_ADMIN:
+        limpar_banco_de_dados()
+        st.success("Histórico de dados limpo com sucesso!")
+    elif not password:
+        st.warning("Por favor, digite a senha.")
+    else:
+        st.error("Senha incorreta. Ação não permitida.")
+
 if st.sidebar.button("Limpar Histórico de Dados"):
     limpar_banco_de_dados()
     st.sidebar.success("Histórico limpo!")
