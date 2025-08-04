@@ -134,6 +134,8 @@ if st.sidebar.button("Limpar Histórico de Dados"):
         st.error("Senha incorreta. Ação não permitida.")
 
 # --- Página Principal ---
+
+st.image("Logo-MVM.png", width=300)
 st.title(":zap: BESS - Battery Energy Storage System")
 st.markdown(f"**Autor:** `{AUTOR}` | **Email:** `{EMAIL}`")
 st.markdown("---")
