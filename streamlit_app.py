@@ -94,9 +94,12 @@ while True:
         dados = DATA_QUEUE.get() # Pega a mensagem mais antiga da fila
 
         # Agora, na thread principal, podemos atualizar o estado do Streamlit com segurança
-        timestamp_atual = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        timestamp_atual = datetime.now() # Pega o objeto datetime
         dados['timestamp'] = timestamp_atual
-        st.session_state.last_message = f"ID: {dados['id_bess']} | Tensão: {dados['tensao']}V | Corrente: {dados['corrente']}A | Potência: {dados['potencia']}kW (às {timestamp_atual})"
+        
+        # Formata a string para exibição
+        timestamp_str = timestamp_atual.strftime("%Y-%m-%d %H:%M:%S")
+        st.session_state.last_message = f"ID: {dados['id_bess']} | Tensão: {dados['tensao']}V | Corrente: {dados['corrente']}A | Potência: {dados['potencia']}kW (às {timestamp_str})"
         
         nova_linha = pd.DataFrame([dados])
         st.session_state.data = pd.concat([st.session_state.data, nova_linha], ignore_index=True)
@@ -104,10 +107,34 @@ while True:
     # Redesenha a interface com os dados atualizados
     with placeholder.container():
         st.info(f"Última Mensagem: {st.session_state.last_message}")
+
+        # Verifica se há dados antes de tentar plotar os gráficos
+        if not st.session_state.data.empty:
+            st.subheader("Gráficos em Tempo Real")
+            
+            # Cria 3 colunas para os gráficos
+            col1, col2, col3 = st.columns(3)
+
+            with col1:
+                st.markdown("##### Tensão (V)")
+                # Para o gráfico, definimos o eixo X e Y explicitamente
+                st.line_chart(st.session_state.data, x='timestamp', y='tensao', use_container_width=True)
+
+            with col2:
+                st.markdown("##### Corrente (A)")
+                st.line_chart(st.session_state.data, x='timestamp', y='corrente', use_container_width=True)
+            
+            with col3:
+                st.markdown("##### Potência (kW)")
+                st.line_chart(st.session_state.data, x='timestamp', y='potencia', use_container_width=True)
+
         st.subheader("Histórico de Leituras Recebidas")
         
         if not st.session_state.data.empty:
-            st.dataframe(st.session_state.data.sort_index(ascending=False), use_container_width=True)
+            # Exibe o timestamp formatado na tabela
+            df_display = st.session_state.data.copy()
+            df_display['timestamp'] = df_display['timestamp'].dt.strftime("%Y-%m-%d %H:%M:%S")
+            st.dataframe(df_display.sort_index(ascending=False), use_container_width=True)
         else:
             st.warning("Nenhum dado recebido ainda.")
 
