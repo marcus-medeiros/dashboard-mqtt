@@ -14,7 +14,7 @@ import sqlite3
 import altair as alt # Importa a biblioteca Altair
 
 # --- Configurações ---
-BROKER_ADDRESS = "test.mosquitto.org"
+BROKER_ADDRESS = "broker.hivemq.com"
 TOPIC = "bess/leituras/simulador"
 DB_NAME = "bess_dados.db"
 AUTOR = "Marcus Vinícius de Medeiros"
