@@ -12,7 +12,7 @@ from datetime import datetime
 import queue # Importa a biblioteca de fila thread-safe
 
 # --- Configurações ---
-BROKER_ADDRESS = "broker.hivemq.com"
+BROKER_ADDRESS = "test.mosquitto.org"
 TOPIC = "bess/leituras/simulador"
 
 # --- Fila para comunicação entre a thread MQTT e a thread principal do Streamlit ---
