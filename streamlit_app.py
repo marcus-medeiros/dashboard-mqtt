@@ -20,7 +20,7 @@ TOPIC = "bess/leituras/simulador"
 DB_NAME = "bess_dados.db"
 AUTOR = "Marcus Vinícius de Medeiros"
 EMAIL = "marcus.vinicius.medeiros@ee.ufcg.edu.br"
-SENHA_ADMIN = "admin"
+SENHA_ADMIN = "debora"
 
 # --- Funções do Banco de Dados (SQLite) ---
 
@@ -102,7 +102,7 @@ def inicializar_estado_sessao():
 
 # --- Interface Gráfica do Streamlit ---
 
-st.set_page_config(page_title="BESS - Monitoramento", layout="wide")
+st.set_page_config(page_title="BESS - MVM", layout="wide")
 
 # Garante que a tabela exista e o estado da sessão seja inicializado
 criar_tabela()
@@ -110,12 +110,12 @@ inicializar_estado_sessao()
 
 # --- Barra Lateral com o novo menu ---
 with st.sidebar:
-    st.image("https://i.imgur.com/g0w5r2j.png", width=100) # Exemplo de logo
+    st.image("Logo-MVM.png", width=100) # Exemplo de logo
     selected = option_menu(
         menu_title="Menu Principal",
         options=["Gráficos", "Alarmes", "Configurações"],
         icons=['graph-up-arrow', 'bell-fill', 'gear-fill'],
-        menu_icon="cast",
+        menu_icon="cloud",
         default_index=0
     )
 
