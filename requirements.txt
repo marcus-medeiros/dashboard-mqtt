@@ -3,3 +3,4 @@ pandas==2.2.2
 plotly==5.22.0
 paho-mqtt==1.6.1
 streamlit-autorefresh
+streamlit-option-menu
