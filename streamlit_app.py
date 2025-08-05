@@ -12,6 +12,8 @@ from datetime import datetime
 import queue
 import sqlite3
 import altair as alt # Importa a biblioteca Altair
+from streamlit_option_menu import option_menu
+
 
 # --- Configurações ---
 BROKER_ADDRESS = "broker.hivemq.com"
@@ -106,7 +108,13 @@ def inicializar_estado_sessao():
 
 # --- Interface Gráfica do Streamlit ---
 
-st.set_page_config(page_title="BESS - Monitoramento", layout="wide")
+st.set_page_config(page_title="BESS - MVM", layout="wide")
+
+
+with st.sidebar:
+    selected = option_menu("Main Menu", ["Home", 'Settings'], 
+        icons=['house', 'gear'], menu_icon="cast", default_index=1)
+    selected
 
 # --- Barra Lateral ---
 st.sidebar.title("Opções de Visualização")
