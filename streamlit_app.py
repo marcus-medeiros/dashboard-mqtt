@@ -15,7 +15,7 @@ import altair as alt # Importa a biblioteca Altair
 from streamlit_option_menu import option_menu # Importa o novo menu
 
 # --- Configurações ---
-BROKER_ADDRESS = "broker.hivemq.com"
+BROKER_ADDRESS = "test.mosquitto.org"
 TOPIC = "bess/leituras/simulador"
 DB_NAME = "bess_dados.db"
 AUTOR = "Marcus Vinícius de Medeiros"
@@ -110,7 +110,7 @@ inicializar_estado_sessao()
 
 # --- Barra Lateral com o novo menu ---
 with st.sidebar:
-    st.image("Logo-MVM.png", width=100) # Exemplo de logo
+    st.image("https://i.imgur.com/g0w5r2j.png", width=100) # Exemplo de logo
     selected = option_menu(
         menu_title="Menu Principal",
         options=["Gráficos", "Alarmes", "Configurações"],
@@ -125,6 +125,8 @@ while not st.session_state.data_queue.empty():
     dados['timestamp'] = datetime.now()
     inserir_dados(dados)
 
+# --- Lógica de Renderização das Páginas ---
+
 # --- Página de Gráficos ---
 if selected == "Gráficos":
     st.title(":zap: Monitoramento em Tempo Real")
@@ -137,60 +139,55 @@ if selected == "Gráficos":
         key='grafico_select'
     )
     
-    placeholder = st.empty()
+    all_data = carregar_dados_do_db()
+    
+    if not all_data.empty:
+        last_row = all_data.iloc[-1]
+        last_message_str = f"ID: {last_row['id_bess']} | Tensão: {last_row['tensao']}V | Corrente: {last_row['corrente']}A | Potência: {last_row['potencia']}kW (às {last_row['timestamp'].strftime('%H:%M:%S')})"
+        st.info(f"Última Leitura Salva: {last_message_str}")
+    else:
+        st.info("Aguardando a primeira mensagem...")
 
-    while True:
-        all_data = carregar_dados_do_db()
-        with placeholder.container():
-            if not all_data.empty:
-                last_row = all_data.iloc[-1]
-                last_message_str = f"ID: {last_row['id_bess']} | Tensão: {last_row['tensao']}V | Corrente: {last_row['corrente']}A | Potência: {last_row['potencia']}kW (às {last_row['timestamp'].strftime('%H:%M:%S')})"
-                st.info(f"Última Leitura Salva: {last_message_str}")
-            else:
-                st.info("Aguardando a primeira mensagem...")
+    data_to_display = all_data[all_data['id_bess'] == selected_bess_grafico]
+    
+    max_points_grafico = st.session_state.get('max_points', 50)
+    chart_data = data_to_display.tail(max_points_grafico)
 
-            data_to_display = all_data[all_data['id_bess'] == selected_bess_grafico]
-            
-            # Usa o valor de max_points salvo no session_state, ou um padrão
-            max_points_grafico = st.session_state.get('max_points', 50)
-            chart_data = data_to_display.tail(max_points_grafico)
-
-            if not chart_data.empty:
-                st.subheader(f"Gráficos para: {selected_bess_grafico}")
-                col1, col2 = st.columns(2)
-                with col1:
-                    st.markdown("##### Tensão (V)")
-                    tensao_chart = alt.Chart(chart_data).mark_line(color="#0072B2").encode(
-                        x=alt.X('timestamp:T', title=None),
-                        y=alt.Y('tensao:Q', title="Tensão (V)", scale=alt.Scale(zero=False)),
-                        tooltip=['timestamp', 'tensao']
-                    ).interactive()
-                    st.altair_chart(tensao_chart, use_container_width=True)
-                with col2:
-                    st.markdown("##### Corrente (A)")
-                    corrente_chart = alt.Chart(chart_data).mark_line(color="#D55E00").encode(
-                        x=alt.X('timestamp:T', title=None),
-                        y=alt.Y('corrente:Q', title="Corrente (A)", scale=alt.Scale(zero=False)),
-                        tooltip=['timestamp', 'corrente']
-                    ).interactive()
-                    st.altair_chart(corrente_chart, use_container_width=True)
-                
-                st.markdown("##### Potência (kW)")
-                potencia_chart = alt.Chart(chart_data).mark_line(color="#009E73").encode(
-                    x=alt.X('timestamp:T', title=None),
-                    y=alt.Y('potencia:Q', title="Potência (kW)", scale=alt.Scale(zero=False)),
-                    tooltip=['timestamp', 'potencia']
-                ).interactive()
-                st.altair_chart(potencia_chart, use_container_width=True)
-            
-            st.subheader(f"Histórico de Leituras para: {selected_bess_grafico}")
-            if not data_to_display.empty:
-                df_display = data_to_display.copy()
-                df_display['timestamp'] = df_display['timestamp'].dt.strftime("%Y-%m-%d %H:%M:%S")
-                st.dataframe(df_display.sort_index(ascending=False), use_container_width=True)
-            else:
-                st.warning(f"Nenhum dado recebido ainda para {selected_bess_grafico}.")
-        time.sleep(1)
+    if not chart_data.empty:
+        st.subheader(f"Gráficos para: {selected_bess_grafico}")
+        col1, col2 = st.columns(2)
+        with col1:
+            st.markdown("##### Tensão (V)")
+            tensao_chart = alt.Chart(chart_data).mark_line(color="#0072B2").encode(
+                x=alt.X('timestamp:T', title=None),
+                y=alt.Y('tensao:Q', title="Tensão (V)", scale=alt.Scale(zero=False)),
+                tooltip=['timestamp', 'tensao']
+            ).interactive()
+            st.altair_chart(tensao_chart, use_container_width=True)
+        with col2:
+            st.markdown("##### Corrente (A)")
+            corrente_chart = alt.Chart(chart_data).mark_line(color="#D55E00").encode(
+                x=alt.X('timestamp:T', title=None),
+                y=alt.Y('corrente:Q', title="Corrente (A)", scale=alt.Scale(zero=False)),
+                tooltip=['timestamp', 'corrente']
+            ).interactive()
+            st.altair_chart(corrente_chart, use_container_width=True)
+        
+        st.markdown("##### Potência (kW)")
+        potencia_chart = alt.Chart(chart_data).mark_line(color="#009E73").encode(
+            x=alt.X('timestamp:T', title=None),
+            y=alt.Y('potencia:Q', title="Potência (kW)", scale=alt.Scale(zero=False)),
+            tooltip=['timestamp', 'potencia']
+        ).interactive()
+        st.altair_chart(potencia_chart, use_container_width=True)
+    
+    st.subheader(f"Histórico de Leituras para: {selected_bess_grafico}")
+    if not data_to_display.empty:
+        df_display = data_to_display.copy()
+        df_display['timestamp'] = df_display['timestamp'].dt.strftime("%Y-%m-%d %H:%M:%S")
+        st.dataframe(df_display.sort_index(ascending=False), use_container_width=True)
+    else:
+        st.warning(f"Nenhum dado recebido ainda para {selected_bess_grafico}.")
 
 # --- Página de Alarmes ---
 if selected == "Alarmes":
@@ -204,13 +201,6 @@ if selected == "Alarmes":
     - Visualizar um histórico de alarmes acionados.
     - Configurar notificações (ainda não implementado).
     """)
-    # Espaço para a lógica de verificação de alarmes
-    # Exemplo:
-    # all_data = carregar_dados_do_db()
-    # if not all_data.empty:
-    #     last_row = all_data.iloc[-1]
-    #     if last_row['tensao'] > 500:
-    #         st.error(f"ALERTA DE SOBRETENSÃO! Valor: {last_row['tensao']}V no {last_row['id_bess']}")
 
 # --- Página de Configurações ---
 if selected == "Configurações":
@@ -241,3 +231,14 @@ if selected == "Configurações":
             st.warning("Por favor, digite a senha.")
         else:
             st.error("Senha incorreta. Ação não permitida.")
+
+# --- Mecanismo de Atualização Automática ---
+# No final do script, ele pausa por 1 segundo e força um rerun.
+# Isso cria o efeito de "live dashboard" sem bloquear o script.
+time.sleep(1)
+try:
+    st.rerun()
+except st.errors.StreamlitAPIException as e:
+    # Ignora o erro que pode ocorrer se o script for interrompido manualmente
+    if "RerunData" not in str(e):
+        raise
