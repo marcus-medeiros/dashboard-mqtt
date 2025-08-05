@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 # SCRIPT 3: DASHBOARD STREAMLIT (VISUALIZADOR)
 # Este script recebe dados e alarmes via MQTT, salva em um banco de dados SQLite,
-# e visualiza as informações em tempo real.
+# e visualiza as informações em tempo real com notificações de alarme.
 
 import streamlit as st
 import pandas as pd
@@ -21,7 +21,7 @@ TOPIC_ALARMES = "bess/alarmes/simulador"
 DB_NAME = "bess_dados.db"
 AUTOR = "Marcus Vinícius de Medeiros"
 EMAIL = "marcus.vinicius.medeiros@ee.ufcg.edu.br"
-SENHA_ADMIN = "debora" # Senha alterada conforme solicitado
+SENHA_ADMIN = "debora"
 
 # --- Funções do Banco de Dados (SQLite) ---
 
@@ -93,7 +93,6 @@ def on_connect(client, userdata, flags, rc):
     """Callback executado quando o cliente se conecta ao broker."""
     if rc == 0:
         print("Conectado ao Broker MQTT!")
-        # Se inscreve em ambos os tópicos
         client.subscribe([(TOPIC_LEITURAS, 0), (TOPIC_ALARMES, 0)])
     else:
         print(f"Falha na conexão, código de retorno: {rc}\n")
@@ -101,7 +100,6 @@ def on_connect(client, userdata, flags, rc):
 def on_message(client, userdata, msg):
     """'userdata' é a nossa fila (queue). Coloca a mensagem e o tópico na fila."""
     try:
-        # Coloca uma tupla (tópico, payload) na fila
         userdata.put((msg.topic, msg.payload.decode()))
     except Exception as e:
         print(f"Erro ao colocar mensagem na fila: {e}")
@@ -125,7 +123,7 @@ def inicializar_estado_sessao():
 
 # --- Interface Gráfica do Streamlit ---
 
-st.set_page_config(page_title="BESS - Monitoramento", layout="wide")
+st.set_page_config(page_title="BESS - MVM", layout="wide")
 
 # Garante que as tabelas existam e o estado da sessão seja inicializado
 criar_tabelas()
@@ -133,7 +131,7 @@ inicializar_estado_sessao()
 
 # --- Barra Lateral com o novo menu ---
 with st.sidebar:
-    st.image("Logo-MVM.png", width=100) # Caminho da imagem alterado
+    st.image("Logo-MVM.png", width=100)
     selected = option_menu(
         menu_title="Menu Principal",
         options=["Gráficos", "Alarmes", "Configurações"],
@@ -141,6 +139,14 @@ with st.sidebar:
         menu_icon="cast",
         default_index=0
     )
+    # Lógica da notificação de alarme
+    if 'new_alarm_timestamp' in st.session_state:
+        if time.time() - st.session_state.new_alarm_timestamp < 5:
+            with st.chat_message("alert", avatar="🚨"):
+                st.write("Novo alarme recebido!")
+        else:
+            # Limpa o estado após 5 segundos para a mensagem desaparecer
+            del st.session_state.new_alarm_timestamp
 
 # --- Processamento de dados MQTT (executa em toda atualização de página) ---
 while not st.session_state.msg_queue.empty():
@@ -152,15 +158,18 @@ while not st.session_state.msg_queue.empty():
         inserir_dados(dados)
     elif topic == TOPIC_ALARMES:
         inserir_alarme(dados)
+        # Define o timestamp do alarme para acionar a notificação
+        st.session_state.new_alarm_timestamp = time.time()
+
+# --- Página Principal (Título e Autor) ---
+st.title(":zap: BESS - Battery Energy Storage System")
+st.markdown(f"**Autor:** `{AUTOR}` | **Email:** `{EMAIL}`")
+st.markdown("---")
 
 # --- Lógica de Renderização das Páginas ---
 
 # --- Página de Gráficos ---
 if selected == "Gráficos":
-    st.title(":zap: Monitoramento em Tempo Real")
-    st.markdown(f"**Autor:** `{AUTOR}` | **Email:** `{EMAIL}`")
-    st.markdown("---")
-
     selected_bess_grafico = st.selectbox(
         "Selecione o BESS para visualizar:",
         options=['BESS001', 'BESS002'],
@@ -218,7 +227,7 @@ if selected == "Gráficos":
         st.warning(f"Nenhum dado recebido ainda para {selected_bess_grafico}.")
 
 # --- Página de Alarmes ---
-if selected == "Alarmes":
+elif selected == "Alarmes":
     st.title(":bell: Histórico de Alarmes")
     st.markdown("---")
     
@@ -230,7 +239,7 @@ if selected == "Alarmes":
         st.info("Nenhum alarme registrado até o momento.")
 
 # --- Página de Configurações ---
-if selected == "Configurações":
+elif selected == "Configurações":
     st.title(":gear: Configurações Gerais")
     st.markdown("---")
     
@@ -238,7 +247,7 @@ if selected == "Configurações":
     st.session_state.max_points = st.number_input(
         "Pontos a exibir nos gráficos (janela de tempo):",
         min_value=10, max_value=1000, 
-        value=st.session_state.get('max_points', 50), # Pega o valor salvo ou usa 50
+        value=st.session_state.get('max_points', 50),
         step=10,
         help="Define o número de leituras mais recentes a serem exibidas na página de Gráficos."
     )
