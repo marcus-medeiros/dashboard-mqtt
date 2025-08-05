@@ -12,22 +12,20 @@ from datetime import datetime
 import queue
 import sqlite3
 import altair as alt # Importa a biblioteca Altair
-from streamlit_option_menu import option_menu
-
+from streamlit_option_menu import option_menu # Importa o novo menu
 
 # --- Configurações ---
-BROKER_ADDRESS = "broker.hivemq.com"
+BROKER_ADDRESS = "test.mosquitto.org"
 TOPIC = "bess/leituras/simulador"
 DB_NAME = "bess_dados.db"
 AUTOR = "Marcus Vinícius de Medeiros"
 EMAIL = "marcus.vinicius.medeiros@ee.ufcg.edu.br"
-SENHA_ADMIN = "debora"
+SENHA_ADMIN = "admin"
 
 # --- Funções do Banco de Dados (SQLite) ---
 
 def criar_tabela():
     """Garante que a tabela para armazenar os dados exista no banco."""
-    # check_same_thread=False é necessário para o ambiente multithread do Streamlit
     with sqlite3.connect(DB_NAME, check_same_thread=False) as conn:
         cursor = conn.cursor()
         cursor.execute("""
@@ -78,10 +76,7 @@ def on_connect(client, userdata, flags, rc):
         print(f"Falha na conexão, código de retorno: {rc}\n")
 
 def on_message(client, userdata, msg):
-    """
-    Callback executado na thread do MQTT.
-    'userdata' é a nossa fila (queue). Coloca a mensagem diretamente na fila.
-    """
+    """'userdata' é a nossa fila (queue). Coloca a mensagem diretamente na fila."""
     try:
         dados = json.loads(msg.payload.decode())
         userdata.put(dados)
@@ -95,7 +90,6 @@ def inicializar_estado_sessao():
     
     if 'mqtt_client' not in st.session_state:
         print("Criando uma nova instância do cliente MQTT e conectando...")
-        # Passamos a fila como 'userdata' para que ela esteja disponível no on_message
         client = mqtt.Client(userdata=st.session_state.data_queue)
         client.on_connect = on_connect
         client.on_message = on_message
@@ -108,32 +102,138 @@ def inicializar_estado_sessao():
 
 # --- Interface Gráfica do Streamlit ---
 
-st.set_page_config(page_title="BESS - MVM", layout="wide")
+st.set_page_config(page_title="BESS - Monitoramento", layout="wide")
 
+# Garante que a tabela exista e o estado da sessão seja inicializado
+criar_tabela()
+inicializar_estado_sessao()
 
+# --- Barra Lateral com o novo menu ---
 with st.sidebar:
-    selected = option_menu("Menu", ["Gráficos", "Alarmes", "Configurações"], 
-        icons=['graph-up', 'bell', 'gear'], menu_icon="cloud", default_index=0)
-    selected
+    st.image("https://i.imgur.com/g0w5r2j.png", width=100) # Exemplo de logo
+    selected = option_menu(
+        menu_title="Menu Principal",
+        options=["Gráficos", "Alarmes", "Configurações"],
+        icons=['graph-up-arrow', 'bell-fill', 'gear-fill'],
+        menu_icon="cast",
+        default_index=0
+    )
 
+# --- Processamento de dados MQTT (executa em toda atualização de página) ---
+while not st.session_state.data_queue.empty():
+    dados = st.session_state.data_queue.get()
+    dados['timestamp'] = datetime.now()
+    inserir_dados(dados)
+
+# --- Página de Gráficos ---
 if selected == "Gráficos":
-    # --- Barra Lateral ---
-    st.sidebar.title("Opções de Visualização")
-    selected_bess = st.sidebar.selectbox(
-        "Selecione o BESS:",
-        options=['BESS001', 'BESS002']
-    )
-    max_points = st.sidebar.number_input(
-        "Pontos a exibir nos gráficos (janela):",
-        min_value=10, max_value=1000, value=50, step=10,
-        help="Define o número de leituras mais recentes a serem exibidas nos gráficos."
-    )
-    st.sidebar.markdown("---")
+    st.title(":zap: Monitoramento em Tempo Real")
+    st.markdown(f"**Autor:** `{AUTOR}` | **Email:** `{EMAIL}`")
+    st.markdown("---")
 
+    selected_bess_grafico = st.selectbox(
+        "Selecione o BESS para visualizar:",
+        options=['BESS001', 'BESS002'],
+        key='grafico_select'
+    )
+    
+    placeholder = st.empty()
+
+    while True:
+        all_data = carregar_dados_do_db()
+        with placeholder.container():
+            if not all_data.empty:
+                last_row = all_data.iloc[-1]
+                last_message_str = f"ID: {last_row['id_bess']} | Tensão: {last_row['tensao']}V | Corrente: {last_row['corrente']}A | Potência: {last_row['potencia']}kW (às {last_row['timestamp'].strftime('%H:%M:%S')})"
+                st.info(f"Última Leitura Salva: {last_message_str}")
+            else:
+                st.info("Aguardando a primeira mensagem...")
+
+            data_to_display = all_data[all_data['id_bess'] == selected_bess_grafico]
+            
+            # Usa o valor de max_points salvo no session_state, ou um padrão
+            max_points_grafico = st.session_state.get('max_points', 50)
+            chart_data = data_to_display.tail(max_points_grafico)
+
+            if not chart_data.empty:
+                st.subheader(f"Gráficos para: {selected_bess_grafico}")
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.markdown("##### Tensão (V)")
+                    tensao_chart = alt.Chart(chart_data).mark_line(color="#0072B2").encode(
+                        x=alt.X('timestamp:T', title=None),
+                        y=alt.Y('tensao:Q', title="Tensão (V)", scale=alt.Scale(zero=False)),
+                        tooltip=['timestamp', 'tensao']
+                    ).interactive()
+                    st.altair_chart(tensao_chart, use_container_width=True)
+                with col2:
+                    st.markdown("##### Corrente (A)")
+                    corrente_chart = alt.Chart(chart_data).mark_line(color="#D55E00").encode(
+                        x=alt.X('timestamp:T', title=None),
+                        y=alt.Y('corrente:Q', title="Corrente (A)", scale=alt.Scale(zero=False)),
+                        tooltip=['timestamp', 'corrente']
+                    ).interactive()
+                    st.altair_chart(corrente_chart, use_container_width=True)
+                
+                st.markdown("##### Potência (kW)")
+                potencia_chart = alt.Chart(chart_data).mark_line(color="#009E73").encode(
+                    x=alt.X('timestamp:T', title=None),
+                    y=alt.Y('potencia:Q', title="Potência (kW)", scale=alt.Scale(zero=False)),
+                    tooltip=['timestamp', 'potencia']
+                ).interactive()
+                st.altair_chart(potencia_chart, use_container_width=True)
+            
+            st.subheader(f"Histórico de Leituras para: {selected_bess_grafico}")
+            if not data_to_display.empty:
+                df_display = data_to_display.copy()
+                df_display['timestamp'] = df_display['timestamp'].dt.strftime("%Y-%m-%d %H:%M:%S")
+                st.dataframe(df_display.sort_index(ascending=False), use_container_width=True)
+            else:
+                st.warning(f"Nenhum dado recebido ainda para {selected_bess_grafico}.")
+        time.sleep(1)
+
+# --- Página de Alarmes ---
+if selected == "Alarmes":
+    st.title(":bell: Gestão de Alarmes")
+    st.markdown("---")
+    st.info("Esta seção está em desenvolvimento.")
+    st.markdown("##### Lógica de Alertas Futura")
+    st.markdown("""
+    Aqui você poderá:
+    - Definir limites de tensão, corrente e potência.
+    - Visualizar um histórico de alarmes acionados.
+    - Configurar notificações (ainda não implementado).
+    """)
+    # Espaço para a lógica de verificação de alarmes
+    # Exemplo:
+    # all_data = carregar_dados_do_db()
+    # if not all_data.empty:
+    #     last_row = all_data.iloc[-1]
+    #     if last_row['tensao'] > 500:
+    #         st.error(f"ALERTA DE SOBRETENSÃO! Valor: {last_row['tensao']}V no {last_row['id_bess']}")
+
+# --- Página de Configurações ---
 if selected == "Configurações":
-    password = st.sidebar.text_input("Digite a senha de administrador para confirmar:", type="password")
-        
-    if st.sidebar.button("Limpar Histórico de Dados"):
+    st.title(":gear: Configurações Gerais")
+    st.markdown("---")
+    
+    st.subheader("Parâmetros dos Gráficos")
+    st.session_state.max_points = st.number_input(
+        "Pontos a exibir nos gráficos (janela de tempo):",
+        min_value=10, max_value=1000, 
+        value=st.session_state.get('max_points', 50), # Pega o valor salvo ou usa 50
+        step=10,
+        help="Define o número de leituras mais recentes a serem exibidas na página de Gráficos."
+    )
+    
+    st.markdown("---")
+    
+    st.subheader("Gerenciamento do Banco de Dados")
+    st.warning("Atenção: A limpeza do banco de dados é uma ação irreversível.")
+    
+    password = st.text_input("Digite a senha de administrador para confirmar:", type="password")
+    
+    if st.button("Limpar Histórico de Dados"):
         if password == SENHA_ADMIN:
             limpar_banco_de_dados()
             st.success("Histórico de dados limpo com sucesso!")
@@ -141,82 +241,3 @@ if selected == "Configurações":
             st.warning("Por favor, digite a senha.")
         else:
             st.error("Senha incorreta. Ação não permitida.")
-
-# --- Página Principal ---
-
-st.image("Logo-MVM.png", width=100)
-st.title(":zap: BESS - Battery Energy Storage System")
-st.markdown(f"**Autor:** `{AUTOR}` | **Email:** `{EMAIL}`")
-st.markdown("---")
-
-# Garante que a tabela exista e o estado da sessão seja inicializado
-criar_tabela()
-inicializar_estado_sessao()
-
-placeholder = st.empty()
-
-# Loop principal da aplicação Streamlit
-while True:
-    # Processa mensagens da fila e insere no banco de dados
-    while not st.session_state.data_queue.empty():
-        dados = st.session_state.data_queue.get()
-        dados['timestamp'] = datetime.now()
-        inserir_dados(dados)
-
-    # Carrega os dados mais recentes do banco
-    all_data = carregar_dados_do_db()
-
-    with placeholder.container():
-        if not all_data.empty:
-            last_row = all_data.iloc[-1]
-            last_message_str = f"ID: {last_row['id_bess']} | Tensão: {last_row['tensao']}V | Corrente: {last_row['corrente']}A | Potência: {last_row['potencia']}kW (às {last_row['timestamp'].strftime('%H:%M:%S')})"
-            st.info(f"Última Leitura Salva: {last_message_str}")
-        else:
-            st.info("Aguardando a primeira mensagem...")
-
-        # Filtra o DataFrame com base na seleção do usuário
-        data_to_display = all_data[all_data['id_bess'] == selected_bess]
-        chart_data = data_to_display.tail(max_points)
-
-        # Verifica se há dados para exibir antes de tentar plotar
-        if not chart_data.empty:
-            st.subheader(f"Gráficos em Tempo Real para: {selected_bess}")
-            
-            # Layout dos gráficos: 2 colunas em cima, 1 em baixo
-            col1, col2 = st.columns(2)
-            with col1:
-                st.markdown("##### Tensão (V)")
-                tensao_chart = alt.Chart(chart_data).mark_line(color="#0072B2").encode(
-                    x=alt.X('timestamp:T', title=None),
-                    y=alt.Y('tensao:Q', title="Tensão (V)", scale=alt.Scale(zero=False)),
-                    tooltip=['timestamp', 'tensao']
-                ).interactive()
-                st.altair_chart(tensao_chart, use_container_width=True)
-
-            with col2:
-                st.markdown("##### Corrente (A)")
-                corrente_chart = alt.Chart(chart_data).mark_line(color="#D55E00").encode(
-                    x=alt.X('timestamp:T', title=None),
-                    y=alt.Y('corrente:Q', title="Corrente (A)", scale=alt.Scale(zero=False)),
-                    tooltip=['timestamp', 'corrente']
-                ).interactive()
-                st.altair_chart(corrente_chart, use_container_width=True)
-            
-            st.markdown("##### Potência (kW)")
-            potencia_chart = alt.Chart(chart_data).mark_line(color="#009E73").encode(
-                x=alt.X('timestamp:T', title=None),
-                y=alt.Y('potencia:Q', title="Potência (kW)", scale=alt.Scale(zero=False)),
-                tooltip=['timestamp', 'potencia']
-            ).interactive()
-            st.altair_chart(potencia_chart, use_container_width=True)
-        
-        st.subheader(f"Histórico de Leituras para: {selected_bess}")
-        
-        if not data_to_display.empty:
-            df_display = data_to_display.copy()
-            df_display['timestamp'] = df_display['timestamp'].dt.strftime("%Y-%m-%d %H:%M:%S")
-            st.dataframe(df_display.sort_index(ascending=False), use_container_width=True)
-        else:
-            st.warning(f"Nenhum dado recebido ainda para {selected_bess}.")
-
-    time.sleep(1)
