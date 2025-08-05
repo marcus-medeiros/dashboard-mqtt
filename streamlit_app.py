@@ -116,30 +116,31 @@ with st.sidebar:
         icons=['graph-up', 'bell', 'gear'], menu_icon="cloud", default_index=0)
     selected
 
-# --- Barra Lateral ---
-st.sidebar.title("Opções de Visualização")
-selected_bess = st.sidebar.selectbox(
-    "Selecione o BESS:",
-    options=['BESS001', 'BESS002']
-)
-max_points = st.sidebar.number_input(
-    "Pontos a exibir nos gráficos (janela):",
-    min_value=10, max_value=1000, value=50, step=10,
-    help="Define o número de leituras mais recentes a serem exibidas nos gráficos."
-)
-st.sidebar.markdown("---")
-st.sidebar.markdown("---")
+if selected == "Gráficos":
+    # --- Barra Lateral ---
+    st.sidebar.title("Opções de Visualização")
+    selected_bess = st.sidebar.selectbox(
+        "Selecione o BESS:",
+        options=['BESS001', 'BESS002']
+    )
+    max_points = st.sidebar.number_input(
+        "Pontos a exibir nos gráficos (janela):",
+        min_value=10, max_value=1000, value=50, step=10,
+        help="Define o número de leituras mais recentes a serem exibidas nos gráficos."
+    )
+    st.sidebar.markdown("---")
 
-password = st.sidebar.text_input("Digite a senha de administrador para confirmar:", type="password")
-    
-if st.sidebar.button("Limpar Histórico de Dados"):
-    if password == SENHA_ADMIN:
-        limpar_banco_de_dados()
-        st.success("Histórico de dados limpo com sucesso!")
-    elif not password:
-        st.warning("Por favor, digite a senha.")
-    else:
-        st.error("Senha incorreta. Ação não permitida.")
+if selected == "Configurações":
+    password = st.sidebar.text_input("Digite a senha de administrador para confirmar:", type="password")
+        
+    if st.sidebar.button("Limpar Histórico de Dados"):
+        if password == SENHA_ADMIN:
+            limpar_banco_de_dados()
+            st.success("Histórico de dados limpo com sucesso!")
+        elif not password:
+            st.warning("Por favor, digite a senha.")
+        else:
+            st.error("Senha incorreta. Ação não permitida.")
 
 # --- Página Principal ---
 
