@@ -195,6 +195,15 @@ if selected == "Alarmes":
     st.markdown("---")
     st.info("Esta seção está em desenvolvimento.")
     st.markdown("<p style='color:red'>⚠️ Alarme Crítico</p>", unsafe_allow_html=True)
+
+    with st.expander("Alarmes Críticos"):
+        st.write("Alarme 1")
+
+    with st.chat_message("alert"):
+        st.write("Novo alarme recebido!")
+
+    st.metric(label="Alarmes Ativos", value=5)
+    
     st.markdown("##### Lógica de Alertas Futura")
     st.markdown("""
     Aqui você poderá:
