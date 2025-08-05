@@ -136,7 +136,7 @@ with st.sidebar:
         menu_title="Menu Principal",
         options=["Gráficos", "Alarmes", "Configurações"],
         icons=['graph-up-arrow', 'bell-fill', 'gear-fill'],
-        menu_icon="cloud",
+        menu_icon="cast",
         default_index=0
     )
     # Lógica da notificação de alarme
@@ -195,12 +195,23 @@ if selected == "Gráficos":
         col1, col2 = st.columns(2)
         with col1:
             st.markdown("##### Tensão (V)")
+            # Gráfico base da tensão
             tensao_chart = alt.Chart(chart_data).mark_line(color="#0072B2").encode(
                 x=alt.X('timestamp:T', title=None),
                 y=alt.Y('tensao:Q', title="Tensão (V)", scale=alt.Scale(zero=False)),
                 tooltip=['timestamp', 'tensao']
             ).interactive()
-            st.altair_chart(tensao_chart, use_container_width=True)
+            
+            # Linhas de limite
+            limite_superior = st.session_state.get('limite_superior_tensao', 495.0)
+            limite_inferior = st.session_state.get('limite_inferior_tensao', 475.0)
+            
+            rule_sup = alt.Chart(pd.DataFrame({'y': [limite_superior]})).mark_rule(color="red", strokeDash=[5,5]).encode(y='y')
+            rule_inf = alt.Chart(pd.DataFrame({'y': [limite_inferior]})).mark_rule(color="red", strokeDash=[5,5]).encode(y='y')
+
+            # Combina o gráfico da linha com as regras de limite
+            st.altair_chart(tensao_chart + rule_sup + rule_inf, use_container_width=True)
+
         with col2:
             st.markdown("##### Corrente (A)")
             corrente_chart = alt.Chart(chart_data).mark_line(color="#D55E00").encode(
@@ -252,6 +263,19 @@ elif selected == "Configurações":
         help="Define o número de leituras mais recentes a serem exibidas na página de Gráficos."
     )
     
+    # Novos campos para configurar os limites de tensão
+    st.subheader("Limites de Tensão para Gráfico")
+    st.session_state.limite_superior_tensao = st.number_input(
+        "Limite Superior de Tensão (V)",
+        value=st.session_state.get('limite_superior_tensao', 495.0),
+        format="%.2f"
+    )
+    st.session_state.limite_inferior_tensao = st.number_input(
+        "Limite Inferior de Tensão (V)",
+        value=st.session_state.get('limite_inferior_tensao', 475.0),
+        format="%.2f"
+    )
+
     st.markdown("---")
     
     st.subheader("Gerenciamento do Banco de Dados")
