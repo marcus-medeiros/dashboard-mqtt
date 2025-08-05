@@ -112,8 +112,8 @@ st.set_page_config(page_title="BESS - MVM", layout="wide")
 
 
 with st.sidebar:
-    selected = option_menu("Main Menu", ["Home", 'Settings'], 
-        icons=['house', 'gear'], menu_icon="cast", default_index=1)
+    selected = option_menu("Menu", ["Gráficos", "Alarmes", "Configurações"], 
+        icons=['graph-up', 'bell', 'gear'], menu_icon="cloud", default_index=1)
     selected
 
 # --- Barra Lateral ---
