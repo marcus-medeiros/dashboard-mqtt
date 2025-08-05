@@ -194,6 +194,7 @@ if selected == "Alarmes":
     st.title(":bell: Gestão de Alarmes")
     st.markdown("---")
     st.info("Esta seção está em desenvolvimento.")
+    st.markdown("<p style='color:red'>⚠️ Alarme Crítico</p>", unsafe_allow_html=True)
     st.markdown("##### Lógica de Alertas Futura")
     st.markdown("""
     Aqui você poderá:
