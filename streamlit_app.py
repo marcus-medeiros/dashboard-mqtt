@@ -110,7 +110,7 @@ inicializar_estado_sessao()
 
 # --- Barra Lateral com o novo menu ---
 with st.sidebar:
-    st.image("https://i.imgur.com/g0w5r2j.png", width=100) # Exemplo de logo
+    st.image("Logo-MVM.png", width=100) # Exemplo de logo
     selected = option_menu(
         menu_title="Menu Principal",
         options=["Gráficos", "Alarmes", "Configurações"],
