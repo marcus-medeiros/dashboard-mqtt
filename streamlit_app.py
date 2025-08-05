@@ -136,7 +136,7 @@ with st.sidebar:
         menu_title="Menu Principal",
         options=["Gráficos", "Alarmes", "Configurações"],
         icons=['graph-up-arrow', 'bell-fill', 'gear-fill'],
-        menu_icon="cast",
+        menu_icon="cloud",
         default_index=0
     )
     # Lógica da notificação de alarme
