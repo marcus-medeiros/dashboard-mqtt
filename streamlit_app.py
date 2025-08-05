@@ -22,6 +22,7 @@ DB_NAME = "bess_dados.db"
 AUTOR = "Marcus Vinícius de Medeiros"
 EMAIL = "marcus.vinicius.medeiros@ee.ufcg.edu.br"
 SENHA_ADMIN = "debora" # Senha alterada conforme solicitado
+alarme = False
 
 # --- Funções do Banco de Dados (SQLite) ---
 
@@ -65,6 +66,7 @@ def inserir_dados(dados):
 
 def inserir_alarme(alarme):
     """Insere um novo alarme no banco de dados."""
+    alarme = True
     with sqlite3.connect(DB_NAME, check_same_thread=False) as conn:
         cursor = conn.cursor()
         cursor.execute("""
@@ -141,6 +143,12 @@ with st.sidebar:
         menu_icon="cast",
         default_index=0
     )
+    if alarme == True:
+        with st.chat_message("alert"):
+            st.write("Novo alarme recebido!")
+            time.sleep(5)
+            alarme == False
+
 
 # --- Processamento de dados MQTT (executa em toda atualização de página) ---
 while not st.session_state.msg_queue.empty():
