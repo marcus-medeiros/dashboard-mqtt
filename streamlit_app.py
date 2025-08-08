@@ -15,7 +15,7 @@ import altair as alt # Importa a biblioteca Altair
 from streamlit_option_menu import option_menu # Importa o novo menu
 
 # --- Configurações ---
-BROKER_ADDRESS = "broker.emqx.io"
+BROKER_ADDRESS = "broker.hivemq.com"
 TOPIC_LEITURAS = "bess/leituras/simulador"
 TOPIC_ALARMES = "bess/alarmes/simulador"
 DB_NAME = "bess_dados.db"
@@ -37,6 +37,7 @@ def criar_tabelas():
             tensao REAL,
             corrente REAL,
             potencia REAL,
+            soc REAL,
             timestamp DATETIME NOT NULL
         )
         """)
@@ -58,9 +59,9 @@ def inserir_dados(dados):
     with sqlite3.connect(DB_NAME, check_same_thread=False) as conn:
         cursor = conn.cursor()
         cursor.execute("""
-            INSERT INTO medicoes (id_bess, tensao, corrente, potencia, timestamp)
+            INSERT INTO medicoes (id_bess, tensao, corrente, potencia, soc, timestamp)
             VALUES (?, ?, ?, ?, ?)
-        """, (dados['id_bess'], dados['tensao'], dados['corrente'], dados['potencia'], dados['timestamp']))
+        """, (dados['id_bess'], dados['tensao'], dados['corrente'], dados['potencia'], dados['soc'], dados['timestamp']))
         conn.commit()
 
 def inserir_alarme(alarme):
@@ -195,21 +196,15 @@ if selected == "Gráficos":
         col1, col2 = st.columns(2)
         with col1:
             st.markdown("##### Tensão (V)")
-            # Gráfico base da tensão
             tensao_chart = alt.Chart(chart_data).mark_line(color="#0072B2").encode(
                 x=alt.X('timestamp:T', title=None),
                 y=alt.Y('tensao:Q', title="Tensão (V)", scale=alt.Scale(zero=False)),
                 tooltip=['timestamp', 'tensao']
             ).interactive()
-            
-            # Linhas de limite
             limite_superior = st.session_state.get('limite_superior_tensao', 495.0)
             limite_inferior = st.session_state.get('limite_inferior_tensao', 475.0)
-            
             rule_sup = alt.Chart(pd.DataFrame({'y': [limite_superior]})).mark_rule(color="red", strokeDash=[5,5]).encode(y='y')
             rule_inf = alt.Chart(pd.DataFrame({'y': [limite_inferior]})).mark_rule(color="red", strokeDash=[5,5]).encode(y='y')
-
-            # Combina o gráfico da linha com as regras de limite
             st.altair_chart(tensao_chart + rule_sup + rule_inf, use_container_width=True)
 
         with col2:
@@ -228,6 +223,16 @@ if selected == "Gráficos":
             tooltip=['timestamp', 'potencia']
         ).interactive()
         st.altair_chart(potencia_chart, use_container_width=True)
+
+        # Novo gráfico de SOC
+        st.markdown("##### State of Charge (SOC %)")
+        soc_chart = alt.Chart(chart_data).mark_line(color="#CC79A7").encode(
+            x=alt.X('timestamp:T', title=None),
+            y=alt.Y('soc:Q', title="SOC (%)", scale=alt.Scale(domain=[0, 100])),
+            tooltip=['timestamp', 'soc']
+        ).interactive()
+        st.altair_chart(soc_chart, use_container_width=True)
+
     
     st.subheader(f"Histórico de Leituras para: {selected_bess_grafico}")
     if not data_to_display.empty:
