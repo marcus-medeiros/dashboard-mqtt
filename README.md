@@ -9,8 +9,4 @@ Além disso, o projeto apresenta exemplos de curvas de aplicação que demonstra
 ** Autor **: Marcus Vinícius 
 ** Email **: marcus.vinicius.medeiros@ee.ufcg.edu.br
 
-<pre>
-def hello():
-    print("Olá mundo!")
-</pre>
 
