@@ -6,7 +6,8 @@ Este projeto propõe uma solução prática: uma interface gráfica intuitiva ca
 
 Além disso, o projeto apresenta exemplos de curvas de aplicação que demonstram o potencial dos sistemas de armazenamento com baterias em diferentes cenários operacionais.
 
-**Autor**: Marcus Vinícius 
-** Email **: marcus.vinicius.medeiros@ee.ufcg.edu.br
+**Autor**: Marcus Vinícius
+
+**Email**: marcus.vinicius.medeiros@ee.ufcg.edu.br
 
 
