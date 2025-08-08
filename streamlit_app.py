@@ -15,7 +15,7 @@ import altair as alt # Importa a biblioteca Altair
 from streamlit_option_menu import option_menu # Importa o novo menu
 
 # --- Configurações ---
-BROKER_ADDRESS = "broker.hivemq.com"
+BROKER_ADDRESS = "broker.emqx.io"
 TOPIC_LEITURAS = "bess/leituras/simulador"
 TOPIC_ALARMES = "bess/alarmes/simulador"
 DB_NAME = "bess_dados.db"
