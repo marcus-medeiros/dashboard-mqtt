@@ -136,7 +136,7 @@ with st.sidebar:
         menu_title="Menu Principal",
         options=["Gráficos", "Alarmes", "Configurações"],
         icons=['graph-up-arrow', 'bell-fill', 'gear-fill'],
-        menu_icon="cast",
+        menu_icon="cloud",
         default_index=0
     )
     # Lógica da notificação de alarme
@@ -203,8 +203,8 @@ if selected == "Gráficos":
             ).interactive()
 
             # Linhas de limite
-            limite_superior = st.session_state.get('limite_superior_tensao', 495.0)
-            limite_inferior = st.session_state.get('limite_inferior_tensao', 475.0)
+            limite_superior = st.session_state.get('limite_superior_tensao', 500.0)
+            limite_inferior = st.session_state.get('limite_inferior_tensao', 470.0)
 
             rule_sup = alt.Chart(pd.DataFrame({'y': [limite_superior]})).mark_rule(color="red", strokeDash=[5,5]).encode(y='y')
             rule_inf = alt.Chart(pd.DataFrame({'y': [limite_inferior]})).mark_rule(color="red", strokeDash=[5,5]).encode(y='y')
