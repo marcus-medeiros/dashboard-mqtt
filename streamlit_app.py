@@ -267,12 +267,12 @@ elif selected == "Configurações":
     st.subheader("Limites de Tensão para Gráfico")
     st.session_state.limite_superior_tensao = st.number_input(
         "Limite Superior de Tensão (V)",
-        value=st.session_state.get('limite_superior_tensao', 495.0),
+        value=st.session_state.get('limite_superior_tensao', 500.0),
         format="%.2f"
     )
     st.session_state.limite_inferior_tensao = st.number_input(
         "Limite Inferior de Tensão (V)",
-        value=st.session_state.get('limite_inferior_tensao', 475.0),
+        value=st.session_state.get('limite_inferior_tensao', 470.0),
         format="%.2f"
     )
 
